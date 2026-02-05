@@ -1,110 +1,111 @@
 # Lab 5: Distributed Data Analysis using Mini-MapReduce on Amazon EMR
 
-## 1. Executive Summary
-This laboratory project focuses on deploying a distributed Word Count application using the **Hadoop MapReduce** framework. By leveraging **Amazon EMR (Elastic MapReduce)** and **Hadoop Streaming**, the project processes a large-scale Wikipedia dataset using custom Python logic to demonstrate the power of cloud-based parallel computing.
+1. Project Overview
+This project demonstrates the implementation of a distributed Word Count pipeline using the Hadoop MapReduce framework. The solution is deployed on Amazon EMR (Elastic MapReduce) and utilizes Hadoop Streaming to execute custom Python scripts for data transformation.
 
-## 2. Dataset Specifications
-* **Source:** Simple English Wikipedia Text Corpus.
-* **Dataset URL:** [Simple English Wiki Dump](https://github.com/LGDoor/Dump-of-Simple-English-Wiki).
-* **Content:** A curated collection of Wikipedia articles formatted for big data processing experiments.
+2. Dataset Information
+Source: Simple English Wikipedia Text Dump
 
-## 3. System Architecture
-The pipeline utilizes a standard distributed processing flow:
-**Input (HDFS)** ⮕ **Mapper (Python)** ⮕ **Shuffle & Sort (Hadoop)** ⮕ **Reducer (Python)** ⮕ **Output (HDFS)**
+Repository: Dump-of-Simple-English-Wiki
 
+Context: A condensed collection of Wikipedia articles designed for high-performance text processing tests.
 
+3. System Architecture
+The pipeline follows the standard MapReduce lifecycle: Input (Stored in HDFS) → Mapper (Python Logic) → Shuffle & Sort (Hadoop Framework) → Reducer (Python Logic) → Final Output (HDFS)
 
-## 4. Script Functionality
+4. Component Breakdown
+mapper.py
+Function: Standardizes input text.
 
-### `mapper.py`
-* **Role:** Data Transformation & Tokenization.
-* **Process:** Standardizes input by converting text to lowercase, filtering for alphanumeric characters, and emitting intermediate key-value pairs `(word, 1)`.
+Logic: Reads lines from stdin, converts text to lowercase, removes non-alphanumeric characters, and outputs individual word tokens with a count of 1.
 
-### `reducer.py`
-* **Role:** Data Aggregation.
-* **Process:** Accepts sorted key-value pairs from the Hadoop framework and calculates the total occurrences for each unique word.
+reducer.py
+Function: Aggregates intermediate results.
 
-## 5. Prerequisites
-* Active AWS Academy Learner Lab environment.
-* Configured Amazon EMR Cluster.
-* SSH client access with `vockey.pem` (or `labsuser.pem`) credentials.
+Logic: Receives sorted key-value pairs from stdin, sums the occurrences for each unique word, and prints the final totals.
 
----
+5. Prerequisites & Environment
+AWS Academy Learner Lab Access.
 
-## 6. Deployment Guide
+An active Amazon EMR Cluster.
 
-### Phase 1: Cluster Initialization
-1.  Navigate to **Amazon EMR** in the AWS Console.
-2.  Launch a cluster using **m4.large** instances (1 Primary, 2 Core).
-3.  Ensure the **Hadoop** application bundle is selected.
-4.  **Note:** Disable "Cluster-specific logs to S3" if encountering permission issues in the Learner Lab.
+Secure Shell (SSH) client (e.g., Terminal, PuTTY).
 
-### Phase 2: Connecting to the Environment
-Locate your Master Node's Public DNS and connect via terminal:
-```bash
-ssh -i labsuser.pem hadoop@<your-master-public-dns>
+vockey.pem private key for authentication.
 
-Phase 3: Data Ingestion (Local to HDFS)
-Prepare the distributed file system for processing:
+6. Execution Guide
+Step 1: Cluster Deployment
+Initialize an EMR cluster with the following specifications:
+
+Software: Hadoop (Core components).
+
+Instances: 1 Primary (m4.large), 1-2 Core nodes (m4.large).
+
+Security: Assign vockey key pair and default IAM roles (EMR_DefaultRole).
+
+Tip: Disable S3 logging if encountering permission errors during initialization.
+
+Step 2: Accessing the Primary Node
+Connect to the cluster via SSH:
 
 Bash
-# Download and unzip the corpus
-wget [https://github.com/LGDoor/Dump-of-Simple-English-Wiki/raw/refs/heads/master/corpus.tgz](https://github.com/LGDoor/Dump-of-Simple-English-Wiki/raw/refs/heads/master/corpus.tgz)
+ssh -i labsuser.pem hadoop@<your-master-public-dns>
+Step 3: Data Preparation & Ingestion
+Fetch the dataset and move it into the distributed file system:
+
+Bash
+# Retrieve and extract data
+wget https://github.com/LGDoor/Dump-of-Simple-English-Wiki/raw/refs/heads/master/corpus.tgz
 tar -xvzf corpus.tgz
 
-# Initialize HDFS directories and upload data
+# Move to HDFS
 hdfs dfs -mkdir -p /user/hadoop/input
 hdfs dfs -put corpus.txt /user/hadoop/input/
-Phase 4: Deploying Scripts
-From your local machine, transfer the logic files to the Master Node:
+Step 4: Code Deployment
+Transfer your Python scripts from your local machine to the cluster:
 
 Bash
-scp -i labsuser.pem mapper.py reducer.py hadoop@<your-master-public-dns>:~/
-On the Master Node terminal, enable execution:
-
-Bash
+scp -i labsuser.pem mapper.py reducer.py hadoop@<master-public-dns>:~/
+# On the cluster, grant execution permissions:
 chmod +x mapper.py reducer.py
-7. Execution and Monitoring
-Running the Job
-Execute the MapReduce job using the Hadoop Streaming jar. Ensure -files is placed before the input/output arguments:
+7. Running the MapReduce Job
+Execute the job using the Hadoop Streaming utility. Note: Generic options like -files must precede command options.
 
 Bash
 hadoop jar /usr/lib/hadoop-mapreduce/hadoop-streaming.jar \
   -files mapper.py,reducer.py \
   -input /user/hadoop/input/ \
-  -output /user/hadoop/output/wordcount_results \
+  -output /user/hadoop/output/wordcount \
   -mapper "python3 mapper.py" \
   -reducer "python3 reducer.py"
-Verification
-Once the job reaches 100% completion, inspect the output:
+Monitoring & Validation
+Track Job: yarn application -list
 
-Bash
-# View result files
-hdfs dfs -ls /user/hadoop/output/wordcount_results/
+Inspect Results: hdfs dfs -cat /user/hadoop/output/wordcount/part-00000 | head -n 20
 
-# Display top 20 lines of results
-hdfs dfs -cat /user/hadoop/output/wordcount_results/part-00000 | head -n 20
+Analyze Performance: Use the time prefix before the hadoop command to measure execution duration.
+
 8. Performance Experiment: Horizontal Scaling
-A core requirement of this lab is analyzing the impact of cluster size on processing speed.
+To observe the benefits of parallelism, compare job runtimes by adjusting cluster size:
 
-Baseline Run: Execute the job using 2 Core Nodes. Use the time command to capture the "real" execution duration.
+Baseline: Run the job with 2 Core Nodes and record the real time.
 
-Scale Out: Through the EMR Console, increase the Core Instance Group to 4 nodes.
+Scaling: Use the EMR Console to resize the Core group to 4 nodes.
 
-Experimental Run: Execute the job again with a new output path and compare the reduction in processing time.
+Comparison: Re-run the job and compare the reduction in processing time.
 
-9. Resource Management (Cleanup)
-To preserve AWS credits, perform the following after data verification:
+9. Cleanup
+To prevent unnecessary resource consumption and lab credit loss:
 
-Clear HDFS data: hdfs dfs -rm -r /user/hadoop/input /user/hadoop/output
+Remove HDFS directories: hdfs dfs -rm -r /user/hadoop/input /user/hadoop/output
 
-Terminate the EMR Cluster immediately via the Management Console.
+Terminate the EMR Cluster via the AWS Management Console immediately after completion.
 
-10. Concepts Demonstrated
-HDFS Implementation: Practical use of distributed storage.
+10. Key Learning Outcomes
+Distributed Storage: Utilizing HDFS for large-scale data persistence.
 
-Parallel Computing: Vertical vs. Horizontal scaling analysis.
+Resource Management: Navigating the YARN ecosystem.
 
-Fault Tolerance: Understanding the framework's ability to redistribute tasks.
+Scalability: Understanding how adding hardware improves throughput.
 
-YARN Resource Management: Monitoring application lifecycles in a cluster.
+Fault Tolerance: Observing how Hadoop handles task distribution across a node cluster.
